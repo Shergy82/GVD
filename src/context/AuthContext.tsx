@@ -58,6 +58,7 @@ interface AuthContextType {
   recordAuditLog: (action: string, entityType: string, entityId: string, details: string, beforeState?: any, afterState?: any) => Promise<void>;
   designatedOwnerEmail: string;
   setDesignatedOwnerEmail: (email: string) => void;
+  resetLoginAndOwnerSetup: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -122,15 +123,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(false);
     }, 1500);
 
-    // Check if demo user role was previously selected
-    const savedDemoRole = localStorage.getItem('gvd_demo_user_role') as UserRole | null;
-    if (savedDemoRole && !auth.currentUser) {
-      loginAsDemoUser(savedDemoRole);
-      setLoading(false);
-      clearTimeout(safetyTimer);
-      return;
-    }
-
     let unsubscribeProfile: (() => void) | null = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
@@ -145,22 +137,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const data = docSnap.data() as UserProfile;
             
             // Sync emailVerified status if needed
-            if (data.emailVerified !== user.emailVerified) {
+            if (data.emailVerified !== user.emailVerified && data.role !== 'Owner') {
               await updateDoc(userRef, { emailVerified: user.emailVerified, updatedAt: new Date().toISOString() }).catch(() => {});
               data.emailVerified = user.emailVerified;
             }
 
-            // Check if this user is the designated owner and hasn't been set to Owner yet
+            // Check if this user should be Owner (first user, designated owner, or already Owner)
             const isOwnerByEmail = designatedOwnerEmail && user.email?.toLowerCase() === designatedOwnerEmail.toLowerCase();
-            if (isOwnerByEmail && data.role !== 'Owner') {
+            const shouldBeOwner = isOwnerByEmail || data.role === 'Owner';
+            if (shouldBeOwner && (data.role !== 'Owner' || data.status !== 'approved')) {
               await updateDoc(userRef, {
                 role: 'Owner',
                 status: 'approved',
-                planningEligible: false,
+                planningEligible: true,
+                emailVerified: true,
                 updatedAt: new Date().toISOString()
               }).catch(() => {});
               data.role = 'Owner';
               data.status = 'approved';
+              data.emailVerified = true;
             }
 
             setCurrentUser(data);
@@ -178,10 +173,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               applicationCategory: 'Individual Contractor',
               role: fallbackRole,
               status: fallbackStatus,
-              planningEligible: false,
+              planningEligible: isOwnerByEmail,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
-              emailVerified: user.emailVerified
+              emailVerified: isOwnerByEmail ? true : user.emailVerified
             };
 
             await setDoc(userRef, {
@@ -231,12 +226,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const userCred = await createUserWithEmailAndPassword(auth, data.email.trim(), data.password);
       const user = userCred.user;
 
-      // 2. Check if this is designated Owner email
-      const isOwnerByEmail = designatedOwnerEmail && data.email.trim().toLowerCase() === designatedOwnerEmail.toLowerCase();
-      const initialRole: UserRole = isOwnerByEmail ? 'Owner' : (
+      // 2. Check if this is the first registered user or designated Owner
+      let isFirstOrOwner = false;
+      try {
+        const usersSnap = await getDocs(collection(db, 'users'));
+        const hasOwner = usersSnap.docs.some(docSnap => docSnap.data()?.role === 'Owner');
+        const isDesignated = designatedOwnerEmail && data.email.trim().toLowerCase() === designatedOwnerEmail.toLowerCase();
+        // If there is no existing Owner, or this user matches designated email, or owner not yet claimed:
+        if (!hasOwner || isDesignated || usersSnap.empty || localStorage.getItem('gvd_connect_owner_claimed') !== 'true') {
+          isFirstOrOwner = true;
+        }
+      } catch (err) {
+        console.warn("Could not query existing users, defaulting to Owner for first registrant:", err);
+        isFirstOrOwner = true;
+      }
+
+      const initialRole: UserRole = isFirstOrOwner ? 'Owner' : (
         data.applicationCategory === 'Contractor Company' ? 'ContractorCompany' : 'IndividualContractor'
       );
-      const initialStatus: AccountStatus = isOwnerByEmail ? 'approved' : 'pending';
+      const initialStatus: AccountStatus = isFirstOrOwner ? 'approved' : 'pending';
+
+      if (isFirstOrOwner) {
+        setDesignatedOwnerEmail(data.email.trim().toLowerCase());
+        localStorage.setItem('gvd_connect_owner_claimed', 'true');
+      }
 
       // 3. Create linked User Profile document in Firestore
       const userProfile: UserProfile = {
@@ -249,10 +262,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         companyContactPerson: data.companyContactPerson ? data.companyContactPerson.trim() : undefined,
         role: initialRole,
         status: initialStatus,
-        planningEligible: false,
+        planningEligible: isFirstOrOwner,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        emailVerified: user.emailVerified
+        emailVerified: isFirstOrOwner ? true : user.emailVerified
       };
 
       await setDoc(doc(db, 'users', user.uid), {
@@ -261,8 +274,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updatedAt: serverTimestamp()
       });
 
-      // 4. Send email verification
-      await sendEmailVerification(user);
+      // 4. Send email verification (non-blocking for Owner)
+      try {
+        await sendEmailVerification(user);
+      } catch (e) {
+        console.warn("Verification email notice:", e);
+      }
+
+      // Set user profile in state immediately
+      setCurrentUser(userProfile);
+      setFirebaseUser(user);
+      setLoading(false);
 
       // 5. Record Audit Log
       await recordAuditLog(
@@ -321,6 +343,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setLoading(true);
     localStorage.removeItem('gvd_demo_user_role');
     await signOut(auth);
+    setFirebaseUser(null);
+    setCurrentUser(null);
+    setLoading(false);
+  };
+
+  const resetLoginAndOwnerSetup = async () => {
+    setLoading(true);
+    localStorage.removeItem('gvd_demo_user_role');
+    localStorage.removeItem(OWNER_EMAIL_STORAGE_KEY);
+    localStorage.removeItem('gvd_connect_owner_claimed');
+    setDesignatedOwnerEmailState('');
+    await signOut(auth).catch(() => {});
     setFirebaseUser(null);
     setCurrentUser(null);
     setLoading(false);
@@ -390,6 +424,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         refreshVerificationStatus,
         sendPasswordReset,
         logout,
+        resetLoginAndOwnerSetup,
         updateMyContactDetails,
         recordAuditLog,
         designatedOwnerEmail,

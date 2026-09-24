@@ -100,8 +100,8 @@ export function MainAppRouter() {
     );
   }
 
-  // 3. Authenticated but Pending or Unverified State
-  if (!isEmailVerified || isPending) {
+  // 3. Authenticated but Pending or Unverified State (Owners bypass pending block)
+  if (currentUser?.role !== 'Owner' && (!isEmailVerified || isPending)) {
     return <PendingApprovalScreen />;
   }
 

@@ -1,7 +1,21 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
-import { Eye, EyeOff, Lock, Mail, ShieldAlert, ArrowRight, Settings, Crown, Shield, HardHat, UserCheck, Sparkles, Building } from 'lucide-react';
+import { 
+  Eye, 
+  EyeOff, 
+  Lock, 
+  Mail, 
+  ShieldAlert, 
+  ArrowRight, 
+  Crown, 
+  Shield, 
+  HardHat, 
+  UserCheck, 
+  RotateCcw, 
+  Settings,
+  Sparkles
+} from 'lucide-react';
 
 interface LoginScreenProps {
   onNavigateRegister: () => void;
@@ -12,7 +26,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onNavigateRegister,
   onNavigateForgotPassword
 }) => {
-  const { login, loginAsDemoUser, designatedOwnerEmail, setDesignatedOwnerEmail } = useAuth();
+  const { login, loginAsDemoUser, resetLoginAndOwnerSetup, designatedOwnerEmail } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,10 +34,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Owner setup modal state
-  const [showOwnerSetup, setShowOwnerSetup] = useState(false);
-  const [ownerInputEmail, setOwnerInputEmail] = useState(designatedOwnerEmail);
-  const [ownerSavedNotice, setOwnerSavedNotice] = useState(false);
+  // Testing & Developer tools state
+  const [showTestingTools, setShowTestingTools] = useState(false);
+  const [resetNotice, setResetNotice] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,20 +52,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       await login(email, password);
     } catch (err: any) {
       console.error("Login failed:", err);
-      // Plain English security error - avoid exposing raw Firebase codes or revealing email existence
       setErrorMsg("Unable to sign in. Check your email and password and try again.");
       setIsSubmitting(false);
     }
   };
 
-  const handleSaveOwnerEmail = (e: React.FormEvent) => {
-    e.preventDefault();
-    setDesignatedOwnerEmail(ownerInputEmail);
-    setOwnerSavedNotice(true);
-    setTimeout(() => {
-      setOwnerSavedNotice(false);
-      setShowOwnerSetup(false);
-    }, 1200);
+  const handleResetState = async () => {
+    await resetLoginAndOwnerSetup();
+    setEmail('');
+    setPassword('');
+    setErrorMsg(null);
+    setResetNotice(true);
+    setTimeout(() => setResetNotice(false), 3000);
   };
 
   const handleQuickLogin = (role: UserRole) => {
@@ -70,13 +81,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       padding: '24px 16px'
     }}>
       <div style={{
-        maxWidth: '480px',
+        maxWidth: '460px',
         width: '100%',
         backgroundColor: 'var(--bg-surface)',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-color)',
         boxShadow: 'var(--shadow-lg)',
-        padding: '32px 28px'
+        padding: '36px 30px'
       }}>
         {/* Branding Logo */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
@@ -111,159 +122,64 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </p>
         </div>
 
-        {/* 1-Click Instant Demo Login Banner & Actions */}
+        {/* First User = Owner Callout Card */}
         <div style={{
           backgroundColor: 'rgba(217, 119, 6, 0.08)',
-          border: '1px solid rgba(217, 119, 6, 0.3)',
+          border: '1px solid rgba(217, 119, 6, 0.35)',
           borderRadius: 'var(--radius-md)',
-          padding: '16px',
-          marginBottom: '24px'
+          padding: '18px 16px',
+          marginBottom: '24px',
+          textAlign: 'center'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-            <Sparkles size={16} color="var(--brand-gold)" />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--brand-gold)' }}>
-              1-Click Instant Access
-            </span>
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            backgroundColor: 'rgba(217, 119, 6, 0.2)',
+            color: 'var(--brand-gold)',
+            marginBottom: '10px'
+          }}>
+            <Crown size={22} />
           </div>
-
-          {/* Featured Primary Owner Button */}
+          <h2 style={{
+            margin: '0 0 6px 0',
+            fontSize: '1.05rem',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-heading)'
+          }}>
+            First Registered User = Owner
+          </h2>
+          <p style={{
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+            margin: '0 0 14px 0',
+            lineHeight: 1.45
+          }}>
+            The first user to create an account automatically receives primary <strong>Owner</strong> authority with full administrative control across all projects, labour, purchasing, and users.
+          </p>
           <button
             type="button"
-            onClick={() => handleQuickLogin('Owner')}
+            onClick={onNavigateRegister}
+            className="btn btn-navy"
             style={{
               width: '100%',
+              padding: '11px',
+              fontSize: '0.95rem',
+              fontWeight: 700,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '12px 16px',
-              backgroundColor: 'var(--brand-navy)',
-              color: '#FFFFFF',
-              border: '1px solid var(--brand-gold)',
-              borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer',
-              fontWeight: 700,
-              fontSize: '0.95rem',
-              boxShadow: '0 2px 8px rgba(15, 23, 42, 0.25)',
-              transition: 'all 0.15s ease'
+              justifyContent: 'center',
+              gap: '8px'
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', textAlign: 'left' }}>
-              <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                backgroundColor: 'rgba(217, 119, 6, 0.25)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <Crown size={18} color="#FBBF24" />
-              </div>
-              <div>
-                <div style={{ lineHeight: 1.2 }}>Sign In as Owner</div>
-                <div style={{ fontSize: '0.75rem', fontWeight: 500, opacity: 0.85 }}>
-                  Phil Shergold ({designatedOwnerEmail || 'shergy82@gmail.com'})
-                </div>
-              </div>
-            </div>
-            <ArrowRight size={16} color="#FBBF24" />
+            <Crown size={16} color="#FBBF24" />
+            <span>Register as First User (Owner)</span>
+            <ArrowRight size={16} />
           </button>
-
-          {/* Other Role Quick Access */}
-          <div style={{ marginTop: '10px' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '6px', fontWeight: 600 }}>
-              Or sign in as team member:
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Admin')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 10px',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <Shield size={14} color="#3B82F6" />
-                <span>Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('ProjectManager')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 10px',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <HardHat size={14} color="#10B981" />
-                <span>Project Mgr</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('Accounts')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 10px',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <Building size={14} color="#8B5CF6" />
-                <span>Accounts</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleQuickLogin('IndividualContractor')}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '7px 10px',
-                  backgroundColor: 'var(--bg-surface)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  color: 'var(--text-primary)',
-                  cursor: 'pointer',
-                  textAlign: 'left'
-                }}
-              >
-                <UserCheck size={14} color="#F59E0B" />
-                <span>Contractor</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Divider */}
@@ -274,8 +190,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           marginBottom: '20px'
         }}>
           <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            or password sign in
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+            or sign in with existing account
           </span>
           <div style={{ flex: 1, height: '1px', backgroundColor: 'var(--border-color)' }} />
         </div>
@@ -302,24 +218,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         {/* Login Form */}
         <form onSubmit={handleSubmit} noValidate>
           <div className="form-group">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <label className="form-label" htmlFor="email-input" style={{ marginBottom: 0 }}>Email address</label>
-              <button
-                type="button"
-                onClick={() => setEmail(designatedOwnerEmail || 'shergy82@gmail.com')}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--brand-gold)',
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  padding: 0
-                }}
-              >
-                Use Owner Email
-              </button>
-            </div>
+            <label className="form-label" htmlFor="email-input">Email address</label>
             <div style={{ position: 'relative' }}>
               <input
                 id="email-input"
@@ -458,97 +357,116 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </p>
         </div>
 
-        {/* Initial Owner Configuration Helper */}
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+        {/* Developer & Testing Options Accordion */}
+        <div style={{ marginTop: '22px', textAlign: 'center' }}>
           <button
             type="button"
-            onClick={() => setShowOwnerSetup(true)}
+            onClick={() => setShowTestingTools(!showTestingTools)}
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--text-muted)',
-              fontSize: '0.75rem',
+              fontSize: '0.78rem',
               cursor: 'pointer',
               display: 'inline-flex',
               alignItems: 'center',
-              gap: '4px'
+              gap: '6px'
             }}
           >
-            <Settings size={12} />
-            <span>Owner Setup Config</span>
+            <Settings size={13} />
+            <span>{showTestingTools ? 'Hide Testing & Demo Options' : 'Testing & Reset Options'}</span>
           </button>
-        </div>
 
-        {/* Owner Setup Modal */}
-        {showOwnerSetup && (
-          <div style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(15, 23, 42, 0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 100,
-            padding: '16px'
-          }}>
+          {showTestingTools && (
             <div style={{
-              backgroundColor: 'var(--bg-surface)',
-              borderRadius: 'var(--radius-lg)',
-              padding: '24px',
-              maxWidth: '400px',
-              width: '100%',
-              boxShadow: 'var(--shadow-lg)',
-              border: '1px solid var(--border-color)'
+              marginTop: '12px',
+              padding: '14px',
+              backgroundColor: 'var(--bg-subtle)',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-color)',
+              textAlign: 'left'
             }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '1.1rem', fontWeight: 700 }}>
-                Designated Owner Email Setup
-              </h3>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Specify the email address that will automatically receive initial <strong>Owner</strong> authority when registered.
-              </p>
-              
-              <form onSubmit={handleSaveOwnerEmail}>
-                <div className="form-group">
-                  <label className="form-label">Owner Email Address</label>
-                  <input
-                    type="email"
-                    className="form-input"
-                    placeholder="e.g. owner@gvd.co.uk"
-                    value={ownerInputEmail}
-                    onChange={(e) => setOwnerInputEmail(e.target.value)}
-                    required
-                  />
-                </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
+                  Local Auth State Reset
+                </span>
+                <button
+                  type="button"
+                  onClick={handleResetState}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--status-danger-text)',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}
+                >
+                  <RotateCcw size={12} />
+                  <span>Reset App State</span>
+                </button>
+              </div>
 
-                {ownerSavedNotice && (
-                  <div style={{
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-sm)',
-                    backgroundColor: 'var(--status-success-bg)',
-                    color: 'var(--status-success-text)',
-                    fontSize: '0.8rem',
-                    marginBottom: '12px'
-                  }}>
-                    Designated owner email updated!
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '16px' }}>
-                  <button
-                    type="button"
-                    className="btn btn-outline btn-sm"
-                    onClick={() => setShowOwnerSetup(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-navy btn-sm">
-                    Save Owner Email
-                  </button>
+              {resetNotice && (
+                <div style={{
+                  padding: '8px 10px',
+                  backgroundColor: 'var(--status-success-bg)',
+                  color: 'var(--status-success-text)',
+                  fontSize: '0.75rem',
+                  borderRadius: 'var(--radius-sm)',
+                  marginBottom: '10px'
+                }}>
+                  Login & local storage state cleared! Ready for new Owner registration.
                 </div>
-              </form>
+              )}
+
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Optional test personas:
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('Owner')}
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
+                >
+                  <Crown size={12} color="#FBBF24" />
+                  <span>Owner Demo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('Admin')}
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
+                >
+                  <Shield size={12} color="#3B82F6" />
+                  <span>Admin Demo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('ProjectManager')}
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
+                >
+                  <HardHat size={12} color="#10B981" />
+                  <span>PM Demo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickLogin('IndividualContractor')}
+                  className="btn btn-outline btn-sm"
+                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
+                >
+                  <UserCheck size={12} color="#F59E0B" />
+                  <span>Contractor Demo</span>
+                </button>
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

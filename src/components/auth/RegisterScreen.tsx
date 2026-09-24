@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import type { ApplicationCategory } from '../../types';
-import { User, Building2, UserCheck, ShieldAlert, ArrowLeft, ArrowRight, Eye, EyeOff, Info } from 'lucide-react';
+import { User, Building2, UserCheck, ShieldAlert, ArrowLeft, ArrowRight, Eye, EyeOff, Info, Crown } from 'lucide-react';
 
 interface RegisterScreenProps {
   onNavigateLogin: () => void;
@@ -188,16 +188,20 @@ export const RegisterScreen: React.FC<RegisterScreenProps> = ({ onNavigateLogin 
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px',
-              padding: '8px 12px',
-              backgroundColor: 'var(--status-info-bg)',
-              color: 'var(--status-info-text)',
+              gap: '8px',
+              padding: '10px 14px',
+              backgroundColor: 'rgba(217, 119, 6, 0.12)',
+              border: '1px solid rgba(217, 119, 6, 0.35)',
+              color: 'var(--brand-gold)',
               borderRadius: 'var(--radius-md)',
               fontSize: '0.85rem',
-              marginBottom: '20px'
+              fontWeight: 600,
+              marginBottom: '20px',
+              lineHeight: 1.4,
+              textAlign: 'center'
             }}>
-              <Info size={16} />
-              <span>All applications require GVD approval before access is granted.</span>
+              <Crown size={18} style={{ flexShrink: 0 }} />
+              <span>Initial Setup Mode: The first registered account automatically receives primary Owner authority.</span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
