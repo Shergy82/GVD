@@ -1,0 +1,272 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function isApproved() {
+      return isAuthenticated() && getUserData().status == 'approved';
+    }
+    
+    function isOwner() {
+      return isApproved() && getUserData().role == 'Owner';
+    }
+    
+    function isAdmin() {
+      return isApproved() && (getUserData().role == 'Owner' || getUserData().role == 'Admin');
+    }
+
+    function isGvdStaff() {
+      return isApproved() && (
+        getUserData().role == 'Owner' || 
+        getUserData().role == 'Admin' || 
+        getUserData().role == 'ProjectManager' || 
+        getUserData().role == 'Planner' || 
+        getUserData().role == 'Accounts'
+      );
+    }
+    
+    function isSelf(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isSelf(userId) || isAdmin() || isGvdStaff();
+      allow create: if isAuthenticated() && isSelf(userId);
+      allow update: if (isAdmin() && (
+          !(request.resource.data.role in ['Owner', 'Admin'] || resource.data.role in ['Owner', 'Admin']) || isOwner()
+        )) || (
+          isSelf(userId) && 
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'phone', 'customFields', 'updatedAt'])
+        );
+      allow delete: if isOwner() && resource.data.role != 'Owner';
+    }
+
+    // Private Business Details
+    match /private_business_details/{userId} {
+      allow read: if isSelf(userId) || isAdmin();
+      allow create, update: if isSelf(userId) || isAdmin();
+      allow delete: if isOwner();
+    }
+
+    // Companies Collection
+    match /companies/{companyId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || 
+        request.auth.uid == resource.data.mainContactUid || 
+        request.auth.uid in resource.data.associatedUserIds
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Competencies Collection
+    match /competencies/{docId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || 
+        request.auth.uid == resource.data.holderId
+      );
+      allow create: if isApproved() && (
+        request.auth.uid == request.resource.data.holderId || 
+        isAdmin()
+      );
+      allow update: if isApproved() && (
+        isAdmin() || 
+        (request.auth.uid == resource.data.holderId && resource.data.reviewStatus != 'Valid')
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Requirement & Custom Field Configs
+    match /requirement_configs/{reqId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    match /custom_field_configs/{fieldId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Notifications
+    match /notifications/{notifId} {
+      allow read, update: if isAuthenticated() && resource.data.recipientId == request.auth.uid;
+      allow create: if isAuthenticated();
+      allow delete: if isAdmin();
+    }
+
+    // Audit Logs
+    match /audit_logs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Counter Sequence Documents
+    match /counters/{counterId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    // Projects Collection
+    match /projects/{projectId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || 
+        request.auth.uid in resource.data.assignedUserIds
+      );
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (
+        isGvdStaff() && request.auth.uid in resource.data.assignedUserIds
+      );
+    }
+
+    // Project Private Commercials (STRICTLY OWNER/ADMIN ONLY)
+    match /project_commercials/{projectId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Project Documents
+    match /project_documents/{docId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || (
+          resource.data.visibility == 'All Authorised Project Participants' ||
+          (resource.data.visibility == 'Selected Project People' && request.auth.uid in resource.data.allowedUserIds)
+        )
+      );
+      allow create, update: if isApproved();
+      allow delete: if isAdmin();
+    }
+
+    // Project Photos
+    match /project_photos/{photoId} {
+      allow read, create, update: if isApproved();
+      allow delete: if isAdmin();
+    }
+
+    // Project Actions
+    match /project_actions/{actionId} {
+      allow read, create, update: if isApproved();
+      allow delete: if isAdmin();
+    }
+
+    // =========================================================
+    // STAGE 4: BOOKINGS, UNAVAILABILITY & FCM PUSH
+    // =========================================================
+
+    // Bookings Collection (Planner & Labour Sheet share this exact same collection)
+    match /bookings/{bookingId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || 
+        resource.data.personId == request.auth.uid
+      );
+      allow create, delete: if isGvdStaff();
+      allow update: if isApproved() && (
+        isGvdStaff() || 
+        (resource.data.personId == request.auth.uid && request.resource.data.status == resource.data.status)
+      );
+    }
+
+    // Unavailability Requests & Approved Absences
+    match /unavailability/{unavailabilityId} {
+      allow read: if isApproved() && (
+        isGvdStaff() || 
+        resource.data.personId == request.auth.uid
+      );
+      allow create: if isApproved() && (
+        isGvdStaff() || 
+        request.resource.data.personId == request.auth.uid
+      );
+      allow update, delete: if isGvdStaff();
+    }
+
+    // FCM Device Subscriptions
+    match /fcm_subscriptions/{subId} {
+      allow read, write: if isAuthenticated() && (
+        request.auth.uid == subId || 
+        request.resource.data.userUid == request.auth.uid
+      );
+    }
+
+    // =========================================================
+    // STAGE 5: CLAIMS, INVOICES & PAYMENTS
+    // =========================================================
+
+    // Contractor Rate Versions (Admin writes, contractor reads own)
+    match /contractor_rates/{rateId} {
+      allow read: if isApproved() && (
+        isAdmin() ||
+        resource.data.contractorUid == request.auth.uid
+      );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Contractor Tax Configuration (Admin only)
+    match /contractor_tax_configs/{contractorUid} {
+      allow read: if isApproved() && (
+        isAdmin() ||
+        getUserData().role == 'Accounts' ||
+        request.auth.uid == contractorUid
+      );
+      allow create, update: if isAdmin() || (isApproved() && getUserData().role == 'Accounts');
+      allow delete: if isAdmin();
+    }
+
+    // Weekly Claims
+    match /weekly_claims/{claimId} {
+      // Contractor reads own; GVD staff reads submitted+
+      allow read: if isApproved() && (
+        resource.data.contractorUid == request.auth.uid ||
+        isGvdStaff()
+      );
+      // Contractor creates own draft claims
+      allow create: if isApproved() && (
+        request.resource.data.contractorUid == request.auth.uid ||
+        isAdmin()
+      );
+      // Contractor can update own drafts/queried; GVD staff can update for review (not own claim)
+      allow update: if isApproved() && (
+        (resource.data.contractorUid == request.auth.uid && resource.data.status in ['Draft', 'Queried']) ||
+        (isGvdStaff() && resource.data.contractorUid != request.auth.uid) ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Invoices
+    match /invoices/{invoiceId} {
+      allow read: if isApproved() && (
+        resource.data.contractorUid == request.auth.uid ||
+        isAdmin() ||
+        getUserData().role == 'Accounts'
+      );
+      allow create: if isApproved() && (
+        isAdmin() ||
+        getUserData().role == 'Accounts' ||
+        request.resource.data.contractorUid == request.auth.uid
+      );
+      allow update: if isApproved() && (
+        isAdmin() ||
+        getUserData().role == 'Accounts'
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Payment Records
+    match /payments/{paymentId} {
+      allow read: if isApproved() && (
+        isAdmin() ||
+        getUserData().role == 'Accounts' ||
+        resource.data.contractorUid == request.auth.uid
+      );
+      allow create: if isApproved() && (
+        isAdmin() ||
+        getUserData().role == 'Accounts'
+      );
+      allow update, delete: if isAdmin();
+    }
+  }
+}
