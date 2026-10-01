@@ -17,7 +17,6 @@ import { ContractorClaimsView } from './views/ContractorClaimsView';
 import { ClaimsReviewView } from './views/ClaimsReviewView';
 import { PurchasingView } from './views/PurchasingView';
 import { ContractorMaterialsView } from './views/ContractorMaterialsView';
-import './styles/theme.css';
 
 type AuthViewMode = 'login' | 'register' | 'forgot-password';
 
