@@ -50,14 +50,20 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({ onClose,
   useEffect(() => {
     // Fetch GVD staff users for responsible manager selection
     const fetchManagers = async () => {
-      const snap = await getDocs(query(collection(db, 'users'), where('status', '==', 'approved')));
       const list: UserProfile[] = [];
-      snap.forEach(d => {
-        const u = { uid: d.id, ...d.data() } as UserProfile;
-        if (u.role === 'Owner' || u.role === 'Admin' || u.role === 'ProjectManager') {
-          list.push(u);
-        }
-      });
+      try {
+        const snap = await getDocs(query(collection(db, 'users'), where('status', '==', 'approved')));
+        snap.forEach(d => {
+          const u = { uid: d.id, ...d.data() } as UserProfile;
+          if (u.role === 'Owner' || u.role === 'Admin' || u.role === 'ProjectManager') {
+            list.push(u);
+          }
+        });
+      } catch (err) {
+        console.warn('Could not load managers list:', err);
+      }
+      // Always offer the creator as a manager (covers a slow/failed users query)
+      if (currentUser && !list.some(m => m.uid === currentUser.uid)) list.unshift(currentUser);
       setGvdManagers(list);
     };
     fetchManagers();

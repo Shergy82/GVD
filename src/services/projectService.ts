@@ -105,6 +105,11 @@ export async function fetchProjects(user: UserProfile, filters: {
   isArchived?: boolean;
 }): Promise<ProjectRecord[]> {
   let q = query(collection(db, 'projects'));
+
+  // Contractors may only list projects they are assigned to (Firestore rules require this constraint)
+  if (user.role === 'IndividualContractor' || user.role === 'ContractorCompany') {
+    q = query(q, where('assignedUserIds', 'array-contains', user.uid));
+  }
   
   const isArchivedTarget = filters.isArchived ?? false;
   q = query(q, where('isArchived', '==', isArchivedTarget));

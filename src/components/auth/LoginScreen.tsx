@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import type { UserRole } from '../../types';
 import { 
   Eye, 
   EyeOff, 
@@ -8,13 +7,7 @@ import {
   Mail, 
   ShieldAlert, 
   ArrowRight, 
-  Crown, 
-  Shield, 
-  HardHat, 
-  UserCheck, 
-  RotateCcw, 
-  Settings,
-  Sparkles
+  Crown
 } from 'lucide-react';
 
 interface LoginScreenProps {
@@ -26,7 +19,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   onNavigateRegister,
   onNavigateForgotPassword
 }) => {
-  const { login, loginAsDemoUser, resetLoginAndOwnerSetup, designatedOwnerEmail } = useAuth();
+  const { login } = useAuth();
   
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -35,8 +28,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Testing & Developer tools state
-  const [showTestingTools, setShowTestingTools] = useState(false);
-  const [resetNotice, setResetNotice] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,20 +46,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setErrorMsg("Unable to sign in. Check your email and password and try again.");
       setIsSubmitting(false);
     }
-  };
-
-  const handleResetState = async () => {
-    await resetLoginAndOwnerSetup();
-    setEmail('');
-    setPassword('');
-    setErrorMsg(null);
-    setResetNotice(true);
-    setTimeout(() => setResetNotice(false), 3000);
-  };
-
-  const handleQuickLogin = (role: UserRole) => {
-    setErrorMsg(null);
-    loginAsDemoUser(role);
   };
 
   return (
@@ -355,117 +332,6 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               Create an account
             </button>
           </p>
-        </div>
-
-        {/* Developer & Testing Options Accordion */}
-        <div style={{ marginTop: '22px', textAlign: 'center' }}>
-          <button
-            type="button"
-            onClick={() => setShowTestingTools(!showTestingTools)}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--text-muted)',
-              fontSize: '0.78rem',
-              cursor: 'pointer',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}
-          >
-            <Settings size={13} />
-            <span>{showTestingTools ? 'Hide Testing & Demo Options' : 'Testing & Reset Options'}</span>
-          </button>
-
-          {showTestingTools && (
-            <div style={{
-              marginTop: '12px',
-              padding: '14px',
-              backgroundColor: 'var(--bg-subtle)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              textAlign: 'left'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)' }}>
-                  Local Auth State Reset
-                </span>
-                <button
-                  type="button"
-                  onClick={handleResetState}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--status-danger-text)',
-                    fontSize: '0.75rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <RotateCcw size={12} />
-                  <span>Reset App State</span>
-                </button>
-              </div>
-
-              {resetNotice && (
-                <div style={{
-                  padding: '8px 10px',
-                  backgroundColor: 'var(--status-success-bg)',
-                  color: 'var(--status-success-text)',
-                  fontSize: '0.75rem',
-                  borderRadius: 'var(--radius-sm)',
-                  marginBottom: '10px'
-                }}>
-                  Login & local storage state cleared! Ready for new Owner registration.
-                </div>
-              )}
-
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Optional test personas:
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px' }}>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('Owner')}
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
-                >
-                  <Crown size={12} color="#FBBF24" />
-                  <span>Owner Demo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('Admin')}
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
-                >
-                  <Shield size={12} color="#3B82F6" />
-                  <span>Admin Demo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('ProjectManager')}
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
-                >
-                  <HardHat size={12} color="#10B981" />
-                  <span>PM Demo</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleQuickLogin('IndividualContractor')}
-                  className="btn btn-outline btn-sm"
-                  style={{ fontSize: '0.75rem', padding: '6px 8px', justifyContent: 'flex-start' }}
-                >
-                  <UserCheck size={12} color="#F59E0B" />
-                  <span>Contractor Demo</span>
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

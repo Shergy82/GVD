@@ -581,7 +581,7 @@ export const IndividualProfileView: React.FC<IndividualProfileViewProps> = ({ us
                         <td style={{ textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
                             {docItem.documentUrl && (
-                              <button type="button" className="btn btn-outline btn-sm" onClick={() => setPreviewingDoc(docItem)}>
+                              <button type="button" className="btn btn-outline btn-sm" onClick={() => setPreviewDoc(docItem)}>
                                 <Eye size={14} /> Preview
                               </button>
                             )}

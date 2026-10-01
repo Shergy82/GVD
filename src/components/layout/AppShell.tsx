@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
-import { Home, User, Users, LogOut, FolderKanban, Calendar, MoreHorizontal, ShieldAlert, Bell, Briefcase, Receipt, CreditCard, CheckCircle, ShoppingBag, Package } from 'lucide-react';
+import { Home, User, Users, LogOut, FolderKanban, Calendar, MoreHorizontal, Briefcase, Receipt, CreditCard, ShoppingBag, Package } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { AcceptanceTestModal } from '../admin/AcceptanceTestModal';
-import { Stage6AcceptanceTestModal } from '../admin/Stage6AcceptanceTestModal';
 
 interface AppShellProps {
   currentTab: string;
@@ -19,11 +17,8 @@ export const AppShell: React.FC<AppShellProps> = ({
 }) => {
   const { currentUser, isOwner, isAdmin, logout } = useAuth();
   const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [showStage6Modal, setShowStage6Modal] = useState(false);
 
   const isContractor = currentUser?.role === 'IndividualContractor' || currentUser?.role === 'ContractorCompany';
-  const isGvdStaff = currentUser?.applicationCategory === 'GVD Employee';
 
   // Core Bottom Navigation Bar items:
   // For GVD Staff: Home | Projects | Planner | My Account | More
@@ -179,30 +174,6 @@ export const AppShell: React.FC<AppShellProps> = ({
               </div>
             </div>
 
-            {(isOwner || isAdmin || currentUser?.role === 'Accounts' || currentUser?.role === 'ProjectManager') && (
-              <>
-                <button
-                  onClick={() => setShowTestModal(true)}
-                  className="btn btn-outline btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', borderColor: 'var(--brand-gold)' }}
-                  title="Run Stage 5 Acceptance Tests A-T"
-                >
-                  <CheckCircle size={15} style={{ color: 'var(--brand-gold)' }} />
-                  <span className="hidden sm:inline">Stage 5 Tests (20)</span>
-                </button>
-
-                <button
-                  onClick={() => setShowStage6Modal(true)}
-                  className="btn btn-outline btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', borderColor: '#38BDF8' }}
-                  title="Run Stage 6 Acceptance Tests A-S"
-                >
-                  <ShoppingBag size={15} style={{ color: '#0284C7' }} />
-                  <span className="hidden sm:inline">Stage 6 Tests (19)</span>
-                </button>
-              </>
-            )}
-
             <button
               onClick={logout}
               className="btn btn-outline btn-sm"
@@ -263,17 +234,6 @@ export const AppShell: React.FC<AppShellProps> = ({
               )}
 
               <button
-                onClick={() => { setShowMoreMenu(false); setShowTestModal(true); }}
-                className="w-full p-3 bg-amber-50 hover:bg-amber-100 rounded-xl text-left flex items-center space-x-3 transition text-amber-800 text-sm font-semibold border border-amber-200"
-              >
-                <CheckCircle className="w-5 h-5 text-amber-600" />
-                <div>
-                  <span className="block font-bold">Acceptance Tests (A–T)</span>
-                  <span className="text-xs text-amber-600 font-normal">Run live tests for Stage 5</span>
-                </div>
-              </button>
-
-              <button
                 onClick={logout}
                 className="w-full p-3 bg-red-50 hover:bg-red-100 rounded-xl text-left flex items-center space-x-3 transition text-red-700 text-sm font-semibold border border-red-200"
               >
@@ -302,16 +262,6 @@ export const AppShell: React.FC<AppShellProps> = ({
           );
         })}
       </nav>
-
-      {/* Acceptance Tests Modals */}
-      <AcceptanceTestModal
-        isOpen={showTestModal}
-        onClose={() => setShowTestModal(false)}
-      />
-      <Stage6AcceptanceTestModal
-        isOpen={showStage6Modal}
-        onClose={() => setShowStage6Modal(false)}
-      />
     </div>
   );
 };

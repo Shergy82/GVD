@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import type { User as FirebaseUser } from 'firebase/auth';
 import { 
   onAuthStateChanged,
@@ -18,6 +18,7 @@ import {
   serverTimestamp, 
   collection, 
   addDoc,
+  writeBatch,
   query,
   where,
   getDocs
@@ -69,6 +70,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const registeringRef = useRef(false); // suppress profile auto-recovery while registerUser writes the profile
   const [lastResendTimestamp, setLastResendTimestamp] = useState<number>(0);
   const [designatedOwnerEmail, setDesignatedOwnerEmailState] = useState<string>(() => {
     return localStorage.getItem(OWNER_EMAIL_STORAGE_KEY) || import.meta.env.VITE_OWNER_EMAIL || '';
@@ -161,6 +163,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setCurrentUser(data);
           } else {
             // Safe Recovery: Auth exists but Firestore profile doc does not exist yet
+            if (registeringRef.current) return;
             const isOwnerByEmail = designatedOwnerEmail && user.email?.toLowerCase() === designatedOwnerEmail.toLowerCase();
             const fallbackRole: UserRole = isOwnerByEmail ? 'Owner' : 'IndividualContractor';
             const fallbackStatus: AccountStatus = isOwnerByEmail ? 'approved' : 'pending';
@@ -221,58 +224,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const registerUser = async (data: RegisterData) => {
     setLoading(true);
+    registeringRef.current = true;
     try {
       // 1. Create Auth account
       const userCred = await createUserWithEmailAndPassword(auth, data.email.trim(), data.password);
       const user = userCred.user;
 
-      // 2. Check if this is the first registered user or designated Owner
-      let isFirstOrOwner = false;
-      try {
-        const usersSnap = await getDocs(collection(db, 'users'));
-        const hasOwner = usersSnap.docs.some(docSnap => docSnap.data()?.role === 'Owner');
-        const isDesignated = designatedOwnerEmail && data.email.trim().toLowerCase() === designatedOwnerEmail.toLowerCase();
-        // If there is no existing Owner, or this user matches designated email, or owner not yet claimed:
-        if (!hasOwner || isDesignated || usersSnap.empty || localStorage.getItem('gvd_connect_owner_claimed') !== 'true') {
-          isFirstOrOwner = true;
-        }
-      } catch (err) {
-        console.warn("Could not query existing users, defaulting to Owner for first registrant:", err);
-        isFirstOrOwner = true;
-      }
+      // 2. Build profile. Default is a pending contractor; only the very first registrant
+      //    (or the designated owner email) may claim Owner, atomically with system/owner.
+      const email = data.email.trim().toLowerCase();
+      const contractorRole: UserRole =
+        data.applicationCategory === 'Contractor Company' ? 'ContractorCompany' : 'IndividualContractor';
 
-      const initialRole: UserRole = isFirstOrOwner ? 'Owner' : (
-        data.applicationCategory === 'Contractor Company' ? 'ContractorCompany' : 'IndividualContractor'
-      );
-      const initialStatus: AccountStatus = isFirstOrOwner ? 'approved' : 'pending';
-
-      if (isFirstOrOwner) {
-        setDesignatedOwnerEmail(data.email.trim().toLowerCase());
-        localStorage.setItem('gvd_connect_owner_claimed', 'true');
-      }
-
-      // 3. Create linked User Profile document in Firestore
-      const userProfile: UserProfile = {
+      const buildProfile = (role: UserRole, status: AccountStatus): UserProfile => ({
         uid: user.uid,
-        email: data.email.trim().toLowerCase(),
+        email,
         fullName: data.fullName.trim(),
         phone: data.phone.trim(),
         applicationCategory: data.applicationCategory,
         companyName: data.companyName ? data.companyName.trim() : undefined,
         companyContactPerson: data.companyContactPerson ? data.companyContactPerson.trim() : undefined,
-        role: initialRole,
-        status: initialStatus,
-        planningEligible: isFirstOrOwner,
+        role,
+        status,
+        planningEligible: role === 'Owner',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        emailVerified: isFirstOrOwner ? true : user.emailVerified
+        emailVerified: role === 'Owner' ? true : user.emailVerified
+      });
+      const toDoc = (p: UserProfile) => {
+        // Firestore rejects undefined values
+        const clean = Object.fromEntries(Object.entries(p).filter(([, v]) => v !== undefined));
+        return { ...clean, createdAt: serverTimestamp(), updatedAt: serverTimestamp() };
       };
 
-      await setDoc(doc(db, 'users', user.uid), {
-        ...userProfile,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      let userProfile = buildProfile('Owner', 'approved');
+      let claimedOwner = false;
+      try {
+        const batch = writeBatch(db);
+        batch.set(doc(db, 'system', 'owner'), { uid: user.uid, email, createdAt: serverTimestamp() });
+        batch.set(doc(db, 'users', user.uid), toDoc(userProfile));
+        await batch.commit();
+        claimedOwner = true; // rules only allow this when no Owner exists yet
+      } catch (err) {
+        console.info('Owner already claimed (or bootstrap denied); registering as contractor.', err);
+      }
+
+      if (!claimedOwner) {
+        userProfile = buildProfile(contractorRole, 'pending');
+        await setDoc(doc(db, 'users', user.uid), toDoc(userProfile));
+      } else {
+        setDesignatedOwnerEmail(email);
+      }
+
+      // 3. (profile written above)
 
       // 4. Send email verification (non-blocking for Owner)
       try {
@@ -299,6 +303,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error: any) {
       setLoading(false);
       throw error;
+    } finally {
+      registeringRef.current = false;
     }
   };
 

@@ -39,7 +39,15 @@ service cloud.firestore {
     // Users Collection
     match /users/{userId} {
       allow read: if isSelf(userId) || isAdmin() || isGvdStaff();
-      allow create: if isAuthenticated() && isSelf(userId);
+      // Self-registration: contractors only, always pending. The very first user may
+      // claim Owner, atomically with the system/owner marker doc (see below).
+      allow create: if isAuthenticated() && isSelf(userId) && (
+        (request.resource.data.role in ['IndividualContractor', 'ContractorCompany'] &&
+         request.resource.data.status == 'pending') ||
+        (request.resource.data.role == 'Owner' &&
+         !exists(/databases/$(database)/documents/system/owner) &&
+         getAfter(/databases/$(database)/documents/system/owner).data.uid == request.auth.uid)
+      );
       allow update: if (isAdmin() && (
           !(request.resource.data.role in ['Owner', 'Admin'] || resource.data.role in ['Owner', 'Admin']) || isOwner()
         )) || (
@@ -47,6 +55,13 @@ service cloud.firestore {
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['fullName', 'phone', 'customFields', 'updatedAt'])
         );
       allow delete: if isOwner() && resource.data.role != 'Owner';
+    }
+
+    // Owner bootstrap marker: can be created once, by the first registrant only
+    match /system/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && docId == 'owner' && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
     }
 
     // Private Business Details
